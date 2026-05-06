@@ -116,26 +116,32 @@ def generate_planform_gcode(
     machine: MachineConfig,
 ) -> str:
     """
-    2 gecis teknik — 1. gecis: planform kesimi (ust gorunus).
-    Her iki kule ayni yolu izler (senkron, tapered yok).
+    Secilen eksenden cikarilan 2D profili kes.
+    Her iki kule ayni yolu izler (senkron 2D kesim).
     """
     px, py = planform_xy
     h1, v1 = machine.ax1_h, machine.ax1_v
     h2, v2 = machine.ax2_h, machine.ax2_v
     F = machine.feed_rate
+    Fp = machine.plunge_rate
     li = machine.lead_in
+    lo = machine.lead_out
 
     lines = [
-        "; SafeFoam — Planform Kesim G-Code (her iki kule ayni yol)",
+        "; SafeFoam — 2D Profil Kesim G-Code",
+        "; Secilen STL ekseninden cikarilan profil",
+        "; Her iki kule ayni yolu izler",
         "G21 G90",
         f"G0 {h1}0 {v1}0 {h2}0 {v2}0",
         f"G0 {h1}{px[0]+li:.3f} {v1}{py[0]:.3f} {h2}{px[0]+li:.3f} {v2}{py[0]:.3f}",
+        f"G1 {h1}{px[0]:.3f} {v1}{py[0]:.3f} {h2}{px[0]:.3f} {v2}{py[0]:.3f} F{Fp:.0f}",
     ]
     for x, y in zip(px, py):
         lines.append(
             f"G1 {h1}{x:.3f} {v1}{y:.3f} {h2}{x:.3f} {v2}{y:.3f} F{F:.0f}"
         )
     lines += [
+        f"G1 {h1}{px[-1]+lo:.3f} {v1}{py[-1]:.3f} {h2}{px[-1]+lo:.3f} {v2}{py[-1]:.3f} F{Fp:.0f}",
         f"G0 {h1}0 {v1}0 {h2}0 {v2}0",
         "; Bitti",
     ]

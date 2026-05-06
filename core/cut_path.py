@@ -44,21 +44,33 @@ def insert_hole_traversal(px: np.ndarray, py: np.ndarray,
     ex = float(px[entry_idx])
     ey = float(py[entry_idx])   # alt yuzey Y degeri giris noktasinda
 
-    # Kanal + delik gecis yolu
-    sub_x = [ex, ex]               # alt yuzey giris noktasi (iki kez — yumusak giris)
-    sub_y = [ey, first_hy]         # alt yuzeyden delik 1 merkezine in
+    def add_hole_loop(xs, ys, hx, hy, hr, n=48):
+        # Merkezden cembere cik, deligi tam tur kes, merkeze geri don.
+        angles = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        xs.append(hx + hr)
+        ys.append(hy)
+        xs.extend((hx + hr * np.cos(angles)).tolist())
+        ys.extend((hy + hr * np.sin(angles)).tolist())
+        xs.append(hx)
+        ys.append(hy)
 
-    # Ileri gecis: delik 1 zaten var, 2. delikten baslayarak ilerle
-    for hx, hy, _ in holes[1:]:
+    # Kanal + delik kesim yolu:
+    # profile giris -> ilk delik merkezi -> delik cemberleri -> ayni kanaldan cikis.
+    sub_x = [ex, ex, first_hx]
+    sub_y = [ey, first_hy, first_hy]
+
+    for hx, hy, hr in holes:
+        if sub_x[-1] != hx or sub_y[-1] != hy:
+            sub_x.append(hx)
+            sub_y.append(hy)
+        add_hole_loop(sub_x, sub_y, hx, hy, hr)
+
+    # Delikler arasi kesilen kanaldan geri don.
+    for hx, hy, _ in reversed(holes[:-1]):
         sub_x.append(hx)
         sub_y.append(hy)
 
-    # Geri donus: son delikten delik 1'e
-    for hx, hy, _ in reversed(holes[1:]):
-        sub_x.append(hx)
-        sub_y.append(hy)
-
-    # Delik 1 merkezinden alt yuzeye cik
+    # Ilk delik merkezinden ayni giris kanalina ve profile cik.
     sub_x += [ex, ex]
     sub_y += [first_hy, ey]
 

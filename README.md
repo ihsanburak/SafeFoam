@@ -1,45 +1,38 @@
-# SafeFoam — CNC Hot Wire Foam Cutter CAM
+# SafeFoam v4
 
-**SafeFoam** is a desktop CAM application for 4-axis CNC hot wire foam cutters.  
-It generates GRBL-compatible G-code to cut RC airplane wings and fuselage sections from foam (EPS/EPP/XPS).
+Desktop CAM software for 4-axis CNC hot-wire foam cutters.
 
-![SafeFoam Screenshot](screenshots/preview.png)
+SafeFoam loads STL/OBJ wing or foam-part models, previews the selected cut axis,
+simulates the hot-wire path, and exports GRBL-compatible G-code.
 
----
+Developer: Captain21  
+Contact: ihsanburakgoksin@gmail.com
 
-## Features
+## Highlights
 
-- **NACA 4-digit airfoil generator** — built-in, no external files needed
-- **4-axis wing G-code** — root and tip profiles move independently for tapered/twisted wings
-- **Supports tapered wings** (different chord at root and tip)
-- **Washout / twist** — per-section twist angle
-- **3D wing surface preview** — real-time visualization before cutting
-- **Lead-in / lead-out** — smooth wire entry and exit
-- **Configurable axis mapping** — works with any GRBL axis layout (X/Y/A/B etc.)
+- STL / OBJ / PLY / 3MF model import
+- PrusaSlicer-style single-screen workflow
+- 3D model viewport with fit, pan, zoom, orbit, and view presets
+- Axis-based profile extraction for hot-wire cutting
+- 2D cut path simulation with play/step controls
+- Carbon tube hole pass support
+- Turkish / English UI switch
+- GRBL-style G-code export for synchronized tower movement
+- Windows EXE build via PyInstaller
 
----
+## Basic Workflow
 
-## Screenshots
+1. Open a 3D model with `Dosya Ac... / Open File...`.
+2. Select the cut axis.
+   - `X` is normally the wing profile cut.
+   - `Y` is useful for planform / top view.
+   - `Z` is mostly a chord/control section for this wing orientation.
+3. Click `Onizle / Slice` to preview the 2D wire path.
+4. Use the simulation controls to inspect the cut.
+5. Click `G-Code Uret & Kaydet` to export a `.nc` file.
 
-| Profile comparison | 3D wing surface |
-|---|---|
-| ![profiles](screenshots/profiles.png) | ![wing3d](screenshots/wing3d.png) |
+## Running From Source
 
----
-
-## Download
-
-**[⬇ Download SafeFoam.exe (Windows)](../../releases/latest)** — no Python required
-
----
-
-## Usage
-
-### Option A — Run the EXE (Windows, no install)
-1. Download `SafeFoam.exe` from [Releases](../../releases/latest)
-2. Double-click — no installation needed
-
-### Option B — Run from source
 ```bash
 git clone https://github.com/ihsanburak/SafeFoam
 cd SafeFoam
@@ -47,79 +40,46 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Workflow
-1. Enter wing parameters (NACA code, chord lengths, span, twist)
-2. Click **Önizle** to see the 3D wing shape
-3. Click **G-Code Üret & Kaydet** → save `.nc` file
-4. Open the `.nc` file in **Universal Gcode Sender (UGS)**
-5. Connect to your machine (GRBL firmware) and cut
+## Building the Windows EXE
 
----
+```bash
+pip install -r requirements.txt pyinstaller
+python -m PyInstaller SafeFoam.spec --clean --noconfirm
+```
 
-## Wing Parameters
+The standalone executable will be created at:
 
-| Parameter | Description |
-|---|---|
-| Kök NACA | Root airfoil NACA code (e.g. `2412`, `0012`, `6409`) |
-| Uç NACA | Tip airfoil — can differ from root for washout profiles |
-| Kök veter | Root chord length in mm |
-| Uç veter | Tip chord length in mm |
-| Açıklık | Wing span / foam block length in mm |
-| Kök / Uç twist | Twist angle in degrees (negative = washout, typical: 0° root, -2° tip) |
+```text
+dist/SafeFoam.exe
+```
 
----
+Users who do not have Python installed can download `SafeFoam.exe` from the
+GitHub Releases page and run it directly on Windows.
 
-## Hardware & Firmware
+## Hardware Target
 
-Designed for machines based on:
-- **Arduino Mega 2560** + **RAMPS 1.4**
-- **4× NEMA17 stepper motors** (2 per tower)
-- **Firmware:** [GRBL 0.8c MEGA RAMPS](https://github.com/eugenober/GRBL0.8cMEGARAMPS) — 4-axis hot wire edition
-- **PC sender:** [Universal Gcode Sender (UGS)](https://universalgcodesender.com/)
+SafeFoam is designed around typical 4-axis hot-wire foam cutter builds such as:
 
-Reference build: [4-Axis CNC Hotwire by Dodo3441 on Thingiverse](https://www.thingiverse.com/thing:3676825)
+- Arduino Mega 2560 + RAMPS 1.4
+- 4 stepper motors, two synchronized towers
+- GRBL hot-wire firmware variants
+- Universal Gcode Sender or similar G-code sender
 
-### Default axis mapping
+Default axis mapping:
+
 | Axis | Function |
 |---|---|
-| X | Left tower — horizontal (chord direction) |
-| Y | Left tower — vertical (thickness direction) |
-| A | Right tower — horizontal |
-| B | Right tower — vertical |
+| X | Left tower horizontal |
+| Y | Left tower vertical |
+| A | Right tower horizontal |
+| B | Right tower vertical |
 
----
+## Notes
 
-## How 4-Axis Cutting Works
-
-```
-Left tower (X, Y)        Hot wire        Right tower (A, B)
-   Root profile ←——————————/———————————→ Tip profile
-   (larger chord)       synchronized     (smaller chord)
-```
-
-The wire interpolates between root and tip as it cuts — allowing tapered, twisted wings in a single pass.
-
----
-
-## Roadmap
-
-- [ ] DXF profile import (from Fusion 360)
-- [ ] 2-pass cutting mode (planform + profile)
-- [ ] Delta wing sweep parameter
-- [ ] Serial port / direct GRBL control
-- [ ] Fuselage half-section mode
-
----
-
-## Requirements
-
-- Python 3.10+
-- numpy
-- matplotlib
-- ezdxf (for future DXF import)
-
----
+The current v4 viewport is built with Tkinter and Matplotlib. It is practical and
+portable, but a future OpenGL viewport would make orbit/pan/zoom feel closer to
+professional slicers and CAD tools.
 
 ## License
 
-MIT © ihsanburak
+MIT

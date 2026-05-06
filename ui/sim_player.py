@@ -13,14 +13,14 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Polygon as MplPolygon, Rectangle, Circle as MplCircle
 
 
-FOAM_COLOR   = "#8B7355"
-FOAM_EDGE    = "#C8A97E"
-CUT_COLOR    = "#1a3a5c"
-TRACE_COLOR  = "#FF6B35"
-WIRE_COLOR   = "#00FF99"
-REMAIN_COLOR = "#6B9E5E"
-HOLE_COLOR   = "#FFD700"
-BG           = "#0f0f1e"
+FOAM_COLOR   = "#C8A97E"
+FOAM_EDGE    = "#7A5C30"
+CUT_COLOR    = "#A8C8E0"
+TRACE_COLOR  = "#CC3300"
+WIRE_COLOR   = "#0055CC"
+REMAIN_COLOR = "#5A8A40"
+HOLE_COLOR   = "#BB6600"
+BG           = "#e8e8e8"
 
 
 class SimPlayer(ttk.Frame):
@@ -77,15 +77,12 @@ class SimPlayer(ttk.Frame):
     # ── UI insa ──────────────────────────────────────────────────────────────
 
     def _build(self):
-        fig = Figure(figsize=(5.5, 4), dpi=96, facecolor=BG)
+        fig = Figure(figsize=(5.5, 4), dpi=96, facecolor=BG, tight_layout=True)
         self._fig = fig
         self._ax  = fig.add_subplot(111)
         self._ax.set_facecolor(BG)
 
-        self._canvas = FigureCanvasTkAgg(fig, master=self)
-        self._canvas.get_tk_widget().pack(fill="both", expand=True)
-
-        ctrl = ttk.Frame(self, padding=(4, 2))
+        ctrl = ttk.Frame(self, padding=(6, 3))
         ctrl.pack(fill="x")
 
         btn_cfg = dict(width=4)
@@ -105,6 +102,9 @@ class SimPlayer(ttk.Frame):
         ttk.Combobox(ctrl, textvariable=self._speed_var,
                      values=["Yavas", "Normal", "Hizli", "Cok Hizli"],
                      width=10, state="readonly").pack(side="right", padx=4)
+
+        self._canvas = FigureCanvasTkAgg(fig, master=self)
+        self._canvas.get_tk_widget().pack(fill="both", expand=True)
 
         self._slider = ttk.Scale(self, from_=0, to=100,
                                  orient="horizontal",
@@ -126,7 +126,7 @@ class SimPlayer(ttk.Frame):
         self._fig.clear()
         ax = self._fig.add_subplot(111)
         self._ax = ax
-        ax.set_facecolor(BG)
+        ax.set_facecolor("white")
         ax.set_aspect("equal")
 
         # ── Kopuk blok ──
@@ -169,7 +169,7 @@ class SimPlayer(ttk.Frame):
                                 edgecolor="#90D080", lw=2.0, zorder=4)
             ax.add_patch(remain)
             ax.set_title(f"{self._title}  ✓  Tamamlandi",
-                         color="#90D080", fontsize=9, pad=4)
+                         color="#2a6e20", fontsize=9, pad=4)
         else:
             # ── Gecilen iz ──
             if step > 0:
@@ -209,19 +209,20 @@ class SimPlayer(ttk.Frame):
                 ax.fill(px[:step + 1], py[:step + 1],
                         color=CUT_COLOR, alpha=0.25, zorder=3)
 
-            ax.set_title(self._title, color="white", fontsize=9, pad=4)
+            ax.set_title(self._title, color="#1a1a3a", fontsize=9, pad=4)
 
         # ── Eksen stilleri ──
         margin = max(bx1 - bx0, by1 - by0) * 0.12
         ax.set_xlim(bx0 - margin, bx1 + margin)
         ax.set_ylim(by0 - margin, by1 + margin)
-        ax.set_xlabel("mm", color="#555", fontsize=7)
-        ax.tick_params(colors="#444", labelsize=6)
+        ax.set_xlabel("mm", color="#333", fontsize=7)
+        ax.tick_params(colors="#333", labelsize=6)
         for sp in ax.spines.values():
-            sp.set_color("#2a2a4a")
+            sp.set_color("#aaaaaa")
 
         self._lbl.config(text=f"Adim: {step} / {n - 1}")
         self._slider.set(step)
+        self._canvas.get_tk_widget().update_idletasks()
         self._canvas.draw()
 
     # ── Kontrol aksiyonlari ──────────────────────────────────────────────────
