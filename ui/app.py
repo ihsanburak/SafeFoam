@@ -158,38 +158,42 @@ class ImportTab(ttk.Frame):
     def _draw_mesh(self):
         if self._mesh is None:
             return
-        ax = self._ax3d
-        ax.cla()
+
+        self._fig3d.clear()
+        ax = self._fig3d.add_subplot(111, projection="3d")
+        self._ax3d = ax
         ax.set_facecolor("#0f0f1e")
 
-        m = self._mesh
+        m     = self._mesh
         verts = m.vertices
-        faces = m.faces
+        edges = m.edges_unique
 
-        # Sadece her 4. yuz ciz (hiz icin)
-        step = max(1, len(faces) // 2000)
-        sub  = faces[::step]
-        tris = verts[sub]
+        # Edge wireframe — cok daha temiz, ayrik body'leri dogru gosterir
+        step = max(1, len(edges) // 4000)
+        ex, ey, ez = [], [], []
+        for e in edges[::step]:
+            ex += [verts[e[0], 0], verts[e[1], 0], None]
+            ey += [verts[e[0], 1], verts[e[1], 1], None]
+            ez += [verts[e[0], 2], verts[e[1], 2], None]
 
-        poly = Poly3DCollection(tris, alpha=0.55,
-                                facecolor="#4fc3f7", edgecolor="none")
-        ax.add_collection3d(poly)
+        ax.plot(ex, ey, ez, color="#4fc3f7", lw=0.4, alpha=0.6)
 
         b = m.bounds
-        ax.set_xlim(b[0][0], b[1][0])
-        ax.set_ylim(b[0][1], b[1][1])
-        ax.set_zlim(b[0][2], b[1][2])
+        pad = (b[1] - b[0]) * 0.05
+        ax.set_xlim(b[0][0] - pad[0], b[1][0] + pad[0])
+        ax.set_ylim(b[0][1] - pad[1], b[1][1] + pad[1])
+        ax.set_zlim(b[0][2] - pad[2], b[1][2] + pad[2])
 
-        ax.set_xlabel("X", color="#777", fontsize=7)
-        ax.set_ylabel("Y", color="#777", fontsize=7)
-        ax.set_zlabel("Z", color="#777", fontsize=7)
+        ax.set_xlabel("X (mm)", color="#666", fontsize=7)
+        ax.set_ylabel("Y (mm)", color="#666", fontsize=7)
+        ax.set_zlabel("Z (mm)", color="#666", fontsize=7)
         ax.tick_params(colors="#555", labelsize=6)
         ax.set_title("3D Model Önizleme", color="white", fontsize=9)
         for p in [ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane]:
-            p.set_facecolor("#12122a"); p.set_alpha(0.5)
+            p.set_facecolor("#0a0a1a"); p.set_alpha(0.6)
         ax.view_init(elev=20, azim=-50)
 
-        self._canvas3d.draw_idle()
+        self._canvas3d.draw()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -261,7 +265,7 @@ class PassTab(ttk.Frame):
     # ── Profili guncelle ─────────────────────────────────────────────────────
 
     def refresh_from_mesh(self, mesh):
-        """Dis cagriya acik — mesh degisince cagrilir."""
+        """Profil cikari ve SimPlayer'a ver."""
         if mesh is None:
             self._sim.clear()
             return
@@ -274,9 +278,19 @@ class PassTab(ttk.Frame):
             bd = foam_bounds(mesh, view_axis=axis)
             self._profile = (px, py)
             self._bounds  = bd
-            self._sim.set_data(px, py, bd)
         except Exception as e:
             messagebox.showerror("Profil Hatası", str(e))
+            return
+        self._sim.set_data(px, py, bd)
+
+    def on_show(self):
+        """Sekme gorunur olunca cagrılır — canvas'i zorla yeniden ciz."""
+        mesh = self._app.mesh
+        if mesh is not None and self._profile[0] is None:
+            self.refresh_from_mesh(mesh)
+        elif self._profile[0] is not None:
+            # Mevcut profili yeniden render et (gizli sekme sorununu coz)
+            self._sim.set_data(*self._profile, self._bounds)
 
     def _refresh(self):
         self.refresh_from_mesh(self._app.mesh)
@@ -361,11 +375,11 @@ class FoamCutterApp(tk.Tk):
     # ── Paylasilan durum ─────────────────────────────────────────────────────
 
     def set_mesh(self, mesh):
-        """ImportTab'dan cagrılır."""
+        """ImportTab'dan cagrılır — profil cache'ini temizle."""
         self.mesh = mesh
-        # Her iki pass tab'ini bilgilendir
-        self.tab_pass1.refresh_from_mesh(mesh)
-        self.tab_pass2.refresh_from_mesh(mesh)
+        # Cache'i sifirla; asil render tab gozukuncе yapilir
+        self.tab_pass1._profile = (None, None)
+        self.tab_pass2._profile = (None, None)
 
     def goto_pass(self, num: int):
         self._nb.select(num)  # 0=import, 1=pass1, 2=pass2
@@ -373,6 +387,6 @@ class FoamCutterApp(tk.Tk):
     def _on_tab_change(self, event):
         idx = self._nb.index("current")
         if idx == 1:
-            self.tab_pass1.refresh_from_mesh(self.mesh)
+            self.tab_pass1.on_show()
         elif idx == 2:
-            self.tab_pass2.refresh_from_mesh(self.mesh)
+            self.tab_pass2.on_show()

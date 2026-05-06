@@ -70,7 +70,7 @@ class SimPlayer(ttk.Frame):
         ax.cla()
         ax.set_facecolor(BG)
         ax.set_title(self._title, color="white", fontsize=9)
-        self._canvas.draw_idle()
+        self._canvas.draw()
 
     # ── UI insa ──────────────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ class SimPlayer(ttk.Frame):
 
         self._lbl.config(text=f"Adım: {step} / {n - 1}")
         self._slider.set(step)
-        self._canvas.draw_idle()
+        self._canvas.draw()
 
     # ── Kontrol aksiyonlari ──────────────────────────────────────────────────
 
