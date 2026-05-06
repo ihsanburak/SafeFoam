@@ -1,6 +1,7 @@
 """
-SimPlayer — Adim adim kesim simülasyonu widget'i.
+SimPlayer — Adim adim kesim simulasyonu widget'i.
 Kopuk blok dikdortgeni uzerinde tel yolu animasyonu.
+v3: tel yon oku + karbon tup delik gorsellestirme.
 """
 import tkinter as tk
 from tkinter import ttk
@@ -9,7 +10,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from matplotlib.patches import FancyArrowPatch, Polygon as MplPolygon, Rectangle
+from matplotlib.patches import Polygon as MplPolygon, Rectangle, Circle as MplCircle
 
 
 FOAM_COLOR   = "#8B7355"
@@ -18,44 +19,45 @@ CUT_COLOR    = "#1a3a5c"
 TRACE_COLOR  = "#FF6B35"
 WIRE_COLOR   = "#00FF99"
 REMAIN_COLOR = "#6B9E5E"
+HOLE_COLOR   = "#FFD700"
 BG           = "#0f0f1e"
-GRID_COLOR   = "#1e1e3a"
 
 
 class SimPlayer(ttk.Frame):
     """
-    Embedded simulation widget.
-    set_data() ile profil ve kopuk siniri verilir,
-    play/step/scrub ile animasyon kontrol edilir.
+    Gomulu simulasyon widget'i.
+    set_data() ile profil, kopuk siniri ve isteğe bagli delikler verilir.
     """
 
-    def __init__(self, parent, title="Kesim Simülasyonu"):
+    def __init__(self, parent, title="Kesim Simulasyonu"):
         super().__init__(parent)
-        self._title   = title
-        self._px      = None
-        self._py      = None
-        self._bounds  = None   # (h0, h1, v0, v1)
-        self._step    = 0
-        self._n       = 0
-        self._playing = False
+        self._title    = title
+        self._px       = None
+        self._py       = None
+        self._bounds   = None   # (h0, h1, v0, v1)
+        self._holes    = []     # [(hx, hy, hr), ...]
+        self._step     = 0
+        self._n        = 0
+        self._playing  = False
         self._after_id = None
 
         self._build()
 
     # ── Public API ───────────────────────────────────────────────────────────
 
-    def set_data(self, profile_x, profile_y, bounds):
+    def set_data(self, profile_x, profile_y, bounds, holes=None):
         """
         profile_x, profile_y : kesim yolu koordinatlari (mm)
         bounds               : (h_min, h_max, v_min, v_max) kopuk blok
+        holes                : [(hx, hy, hr), ...] karbon tup delikleri (isteğe bağlı)
         """
-        # Profili 400 adima yeniden ornekle — duzgun animasyon icin
         n_raw = len(profile_x)
         t_old = np.linspace(0, 1, n_raw)
         t_new = np.linspace(0, 1, 400)
         self._px = np.interp(t_new, t_old, profile_x)
         self._py = np.interp(t_new, t_old, profile_y)
         self._bounds = bounds
+        self._holes  = holes or []
         self._n = len(self._px)
         self._step = 0
         self._playing = False
@@ -75,7 +77,6 @@ class SimPlayer(ttk.Frame):
     # ── UI insa ──────────────────────────────────────────────────────────────
 
     def _build(self):
-        # Matplotlib canvas
         fig = Figure(figsize=(5.5, 4), dpi=96, facecolor=BG)
         self._fig = fig
         self._ax  = fig.add_subplot(111)
@@ -84,30 +85,27 @@ class SimPlayer(ttk.Frame):
         self._canvas = FigureCanvasTkAgg(fig, master=self)
         self._canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        # Kontroller
         ctrl = ttk.Frame(self, padding=(4, 2))
         ctrl.pack(fill="x")
 
         btn_cfg = dict(width=4)
         ttk.Button(ctrl, text="⏮",  command=self._goto_start, **btn_cfg).pack(side="left", padx=1)
-        ttk.Button(ctrl, text="◀",  command=self._step_back,  **btn_cfg).pack(side="left", padx=1)
+        ttk.Button(ctrl, text="◄",  command=self._step_back,  **btn_cfg).pack(side="left", padx=1)
         self._play_btn = ttk.Button(ctrl, text="▶  Oynat",
                                     command=self._toggle_play, width=10)
         self._play_btn.pack(side="left", padx=2)
         ttk.Button(ctrl, text="▶",  command=self._step_fwd,   **btn_cfg).pack(side="left", padx=1)
         ttk.Button(ctrl, text="⏭",  command=self._goto_end,   **btn_cfg).pack(side="left", padx=1)
 
-        self._lbl = ttk.Label(ctrl, text="Adım: 0 / 0", width=14)
+        self._lbl = ttk.Label(ctrl, text="Adim: 0 / 0", width=14)
         self._lbl.pack(side="left", padx=8)
 
-        # Hiz
-        ttk.Label(ctrl, text="Hız:").pack(side="right", padx=2)
-        self._speed_var = tk.StringVar(value="Hızlı")
+        ttk.Label(ctrl, text="Hiz:").pack(side="right", padx=2)
+        self._speed_var = tk.StringVar(value="Hizli")
         ttk.Combobox(ctrl, textvariable=self._speed_var,
-                     values=["Yavaş", "Normal", "Hızlı", "Çok Hızlı"],
+                     values=["Yavas", "Normal", "Hizli", "Cok Hizli"],
                      width=10, state="readonly").pack(side="right", padx=4)
 
-        # Slider
         self._slider = ttk.Scale(self, from_=0, to=100,
                                  orient="horizontal",
                                  command=self._on_slider)
@@ -125,14 +123,13 @@ class SimPlayer(ttk.Frame):
         step = max(0, min(step, n - 1))
         bx0, bx1, by0, by1 = self._bounds
 
-        # Axes'i yeniden olustur (cla() bazi matplotlib surumlerinde hatali)
         self._fig.clear()
         ax = self._fig.add_subplot(111)
         self._ax = ax
         ax.set_facecolor(BG)
         ax.set_aspect("equal")
 
-        # ── Kesimlenmemis kopuk blok ──
+        # ── Kopuk blok ──
         foam = Rectangle((bx0, by0), bx1 - bx0, by1 - by0,
                           facecolor=FOAM_COLOR, alpha=0.45,
                           edgecolor=FOAM_EDGE, lw=1.5, zorder=1)
@@ -141,31 +138,73 @@ class SimPlayer(ttk.Frame):
         # ── Tam profil yolu (soluk) ──
         ax.plot(px, py, color="#2a4060", lw=1.2, zorder=2)
 
+        # ── Karbon tup delikleri ──
+        if self._holes:
+            for hx, hy, hr in self._holes:
+                circle = MplCircle((hx, hy), hr,
+                                   fill=True, facecolor="#1a1000",
+                                   edgecolor=HOLE_COLOR, lw=1.5,
+                                   linestyle="--", zorder=3, alpha=0.9)
+                ax.add_patch(circle)
+            # Giris kanali (ilk deligin hx pozisyonunda)
+            fhx, fhy, fhr = min(self._holes, key=lambda h: h[0])
+            near = np.abs(px - fhx) < (bx1 - bx0) * 0.05
+            if near.any():
+                surf_y = float(py[near].min())
+                ax.plot([fhx, fhx], [surf_y, fhy - fhr],
+                        color=HOLE_COLOR, lw=1.0, linestyle=":",
+                        alpha=0.7, zorder=3)
+            # Delikler arasi baglanti (yatay gecis yolu)
+            if len(self._holes) > 1:
+                hxs = [h[0] for h in self._holes]
+                hys = [h[1] for h in self._holes]
+                ax.plot(hxs, hys, color=HOLE_COLOR, lw=0.8,
+                        linestyle=":", alpha=0.5, zorder=3)
+
         if step >= n - 1:
-            # ── Kesim tamamlandi: kalan kopuk formu goster ──
+            # ── Kesim tamamlandi ──
             verts = np.column_stack([px, py])
             remain = MplPolygon(verts, closed=True,
                                 facecolor=REMAIN_COLOR, alpha=0.65,
-                                edgecolor="#90D080", lw=2.0, zorder=3)
+                                edgecolor="#90D080", lw=2.0, zorder=4)
             ax.add_patch(remain)
-            ax.set_title(f"{self._title}  ✓  Tamamlandı",
+            ax.set_title(f"{self._title}  ✓  Tamamlandi",
                          color="#90D080", fontsize=9, pad=4)
         else:
             # ── Gecilen iz ──
             if step > 0:
                 ax.plot(px[:step + 1], py[:step + 1],
-                        color=TRACE_COLOR, lw=2.0, alpha=0.85, zorder=4)
+                        color=TRACE_COLOR, lw=2.0, alpha=0.85, zorder=5)
 
-            # ── Tel konumu (nokta + dikey kesim cizgisi) ──
+            # ── Tel konumu ──
             wx, wy = px[step], py[step]
             ax.plot(wx, wy, "o", color=WIRE_COLOR,
-                    markersize=9, zorder=6)
+                    markersize=9, zorder=7)
             ax.plot([wx, wx], [by0, by1],
                     color=WIRE_COLOR, lw=1.0, alpha=0.35,
-                    linestyle="--", zorder=5)
+                    linestyle="--", zorder=4)
 
-            # ── Ilerlemis kesim alani (kopuk disinda kalan) ──
-            # Basit gosterim: gecilen pathi cok hafif doldur
+            # ── Tel hareket yonu oku ──
+            if step > 2:
+                dx = px[step] - px[step - 3]
+                dy = py[step] - py[step - 3]
+                mag = np.sqrt(dx**2 + dy**2)
+                if mag > 1e-6:
+                    scale = max(bx1 - bx0, by1 - by0) * 0.06 / mag
+                    ax.annotate(
+                        '',
+                        xy=(wx + dx * scale, wy + dy * scale),
+                        xytext=(wx, wy),
+                        arrowprops=dict(
+                            arrowstyle="->",
+                            color=WIRE_COLOR,
+                            lw=2.0,
+                            mutation_scale=16,
+                        ),
+                        zorder=8,
+                    )
+
+            # ── Gecilen alan (hafif dolgu) ──
             if step > 1:
                 ax.fill(px[:step + 1], py[:step + 1],
                         color=CUT_COLOR, alpha=0.25, zorder=3)
@@ -181,13 +220,13 @@ class SimPlayer(ttk.Frame):
         for sp in ax.spines.values():
             sp.set_color("#2a2a4a")
 
-        self._lbl.config(text=f"Adım: {step} / {n - 1}")
+        self._lbl.config(text=f"Adim: {step} / {n - 1}")
         self._slider.set(step)
         self._canvas.draw()
 
     # ── Kontrol aksiyonlari ──────────────────────────────────────────────────
 
-    _SPEEDS = {"Yavaş": 80, "Normal": 25, "Hızlı": 8, "Çok Hızlı": 1}
+    _SPEEDS = {"Yavas": 80, "Normal": 25, "Hizli": 8, "Cok Hizli": 1}
 
     def _toggle_play(self):
         if self._px is None:
